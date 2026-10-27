@@ -5,7 +5,7 @@ import { audio } from './audio.js';
 import { storage } from './storage.js';
 import { THEMES, PALETTES, themeById, themeForScore } from './themes.js';
 
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const TIPS = [
   'Clear rows and columns at the same time for huge combos.',
   'Keep the centre open — big pieces need room.',

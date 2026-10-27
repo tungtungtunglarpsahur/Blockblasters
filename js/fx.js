@@ -234,7 +234,7 @@ export class FX {
 }
 
 export function roundRect(ctx, x, y, w, h, r) {
-  r = Math.min(r, w / 2, h / 2);
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
   ctx.arcTo(x + w, y + h, x, y + h, r);
