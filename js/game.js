@@ -13,9 +13,37 @@ export function scoreForLevel(level) {
   return (level - 1) * (level - 1) * 500;
 }
 
+// Small seedable RNG (mulberry32) so the Daily Challenge deals everyone the same pieces
+// and a saved game can resume with the exact same random stream.
+export class Rng {
+  constructor(seed) { this.s = seed >>> 0; }
+  next() {
+    this.s = (this.s + 0x6D2B79F5) | 0;
+    let t = Math.imul(this.s ^ (this.s >>> 15), 1 | this.s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+}
+export function hashSeed(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+export function todayKey(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export class Game {
-  constructor(rng = Math.random) {
-    this.rng = rng;
+  // `opts` may be a plain rng function (tests) or { seed, mode, daily }
+  constructor(opts = {}) {
+    if (typeof opts === 'function') { this.rng = opts; this.rngObj = null; this.seed = 0; this.mode = 'classic'; this.daily = null; }
+    else {
+      this.mode = opts.mode || 'classic';
+      this.daily = opts.daily || null;
+      this.seed = opts.seed !== undefined ? opts.seed >>> 0 : (Math.random() * 4294967296) >>> 0;
+      this.rngObj = new Rng(this.seed);
+      this.rng = () => this.rngObj.next();
+    }
     this.reset();
   }
 
@@ -141,7 +169,9 @@ export class Game {
     let points = piece.shape.size;
     let comboBefore = this.combo;
     let perfect = false;
+    let perfectBonus = 0;
     let coins = 0;
+    const colorSet = new Set(cleared.map(c => c[2]));
     if (linesCleared > 0) {
       this.combo++;
       this.missStreak = 0;
@@ -150,7 +180,13 @@ export class Game {
       points += base * Math.max(1, this.combo);
       this.lines += linesCleared;
       coins += linesCleared + (this.combo >= 2 ? this.combo : 0);
-      if (this.isEmptyBoard()) { perfect = true; points += 1000; coins += 25; }
+      if (this.isEmptyBoard()) {
+        // ALL CLEAR: the bonus scales with the combo you did it on (×combo), like a jackpot
+        perfect = true;
+        perfectBonus = 500 * Math.max(2, this.combo);
+        points += perfectBonus;
+        coins += 25;
+      }
     } else {
       this.missStreak++;
       if (this.missStreak >= 2) { this.combo = 0; this.missStreak = 0; }
@@ -169,7 +205,8 @@ export class Game {
     if (!this.anyMoveAvailable()) this.gameOver = true;
 
     return {
-      placedCells, rows, cols, cleared, linesCleared, points, perfect, coins,
+      placedCells, rows, cols, cleared, linesCleared, points, perfect, perfectBonus, coins,
+      colorsGone: colorSet.size,                       // distinct colours among the cleared blocks
       combo: this.combo, comboBefore, levelUp, level, refilled, gameOver: this.gameOver,
       color: piece.color, score: this.score,
     };
@@ -210,12 +247,14 @@ export class Game {
       pieces: this.pieces.map(p => ({ s: p.shape.id, c: p.color, u: p.used })),
       score: this.score, combo: this.combo, missStreak: this.missStreak, lines: this.lines,
       maxCombo: this.maxCombo, placed: this.placed, revivesUsed: this.revivesUsed, gameOver: this.gameOver,
+      mode: this.mode, daily: this.daily, seed: this.seed, rngState: this.rngObj ? this.rngObj.s : undefined,
     };
   }
 
-  static fromJSON(data, rng = Math.random) {
-    const g = new Game(rng);
+  static fromJSON(data, rng) {
+    const g = rng ? new Game(rng) : new Game({ seed: data && data.seed, mode: data && data.mode, daily: data && data.daily });
     if (!data || data.v !== 1 || !Array.isArray(data.board) || data.board.length !== SIZE * SIZE) return g;
+    if (g.rngObj && typeof data.rngState === 'number') g.rngObj.s = data.rngState >>> 0;
     g.board = Uint8Array.from(data.board);
     g.pieces = (data.pieces || []).map(p => ({ shape: SHAPES[p.s] || SHAPES[0], color: p.c || 1, used: !!p.u }));
     while (g.pieces.length < PIECE_SLOTS) g.pieces.push({ shape: randomShape(rng), color: 1, used: true });

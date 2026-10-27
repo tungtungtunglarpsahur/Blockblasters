@@ -58,6 +58,26 @@ export class FX {
     this.rings.push({ x, y, color, r0, r1, life, max: life, width });
   }
 
+  // Big praise banner ("Great!", "Combo Master", "2 Colors Gone!") – gradient fill, dark outline,
+  // pops in with overshoot, holds, then floats away. Only one banner at a time per lane.
+  banner(x, y, str, { colors = ['#ffffff', '#c7d2fe'], size = 40, life = 1.5, lane = 0, sub = null, subColor = '#fff' } = {}) {
+    this.banners = this.banners || [];
+    for (let i = this.banners.length - 1; i >= 0; i--) if (this.banners[i].lane === lane) this.banners[i].life = Math.min(this.banners[i].life, 0.18);
+    this.banners.push({ x, y, str, colors, size, life, max: life, lane, sub, subColor, born: this.time });
+  }
+
+  // twinkling 4-point stars (decoration, e.g. empty tray slots)
+  sparkle(x, y, color = '#ffffff', { count = 1, size = 6, life = 0.8, spread = 30 } = {}) {
+    const n = Math.max(1, Math.round(count * this.scale));
+    for (let i = 0; i < n; i++) {
+      this.particles.push({
+        x: x + (Math.random() - 0.5) * spread, y: y + (Math.random() - 0.5) * spread,
+        vx: (Math.random() - 0.5) * 20, vy: -10 - Math.random() * 20, life: life * (0.6 + Math.random() * 0.6), max: life,
+        size: size * (0.6 + Math.random() * 0.8), color, rot: Math.random() * TAU, vr: (Math.random() - 0.5) * 3, g: 0, shape: 'star',
+      });
+    }
+  }
+
   shakeScreen(amp = 6, dur = 0.25) {
     if (this.quality === 'low') amp *= 0.5;
     this.shake.amp = Math.max(this.shake.amp, amp);
@@ -86,6 +106,9 @@ export class FX {
     for (let i = this.rings.length - 1; i >= 0; i--) {
       const r = this.rings[i]; r.life -= dt; if (r.life <= 0) this.rings.splice(i, 1);
     }
+    if (this.banners) for (let i = this.banners.length - 1; i >= 0; i--) {
+      const b = this.banners[i]; b.life -= dt; if (b.life <= 0) this.banners.splice(i, 1);
+    }
     // shake
     if (this.shake.t > 0) {
       this.shake.t -= dt;
@@ -108,6 +131,11 @@ export class FX {
       ctx.rotate(p.rot);
       if (p.shape === 'spark') {
         ctx.fillRect(-p.size * 2, -p.size * 0.35, p.size * 4, p.size * 0.7);
+      } else if (p.shape === 'star') {
+        const s = p.size * (0.5 + 0.5 * Math.sin(k * Math.PI));
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; const rr = i % 2 ? s * 0.32 : s; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+        ctx.closePath(); ctx.fill();
       } else if (p.shape === 'confetti') {
         const sy = Math.abs(Math.sin(this.time * 6 + p.rot)) * p.size;
         ctx.fillRect(-p.size / 2, -sy / 2, p.size, Math.max(1.5, sy));
@@ -154,6 +182,48 @@ export class FX {
     }
   }
 
+  drawBanners(ctx) {
+    if (!this.banners) return;
+    for (const b of this.banners) {
+      const age = b.max - b.life;
+      const tIn = Math.min(1, age / 0.22);
+      const scale = 0.3 + 0.7 * easeOutBack(tIn);
+      const tOut = b.life < 0.35 ? b.life / 0.35 : 1;
+      const rise = b.life < 0.35 ? (1 - tOut) * 30 : 0;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, tIn * 1.5) * tOut;
+      ctx.translate(b.x, b.y - rise);
+      ctx.scale(scale, scale);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `900 ${b.size}px Fredoka, Inter, system-ui, sans-serif`;
+      ctx.lineJoin = 'round';
+      // outer dark outline + soft glow
+      ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = b.size * 0.35; ctx.shadowOffsetY = b.size * 0.08;
+      ctx.lineWidth = b.size * 0.22; ctx.strokeStyle = 'rgba(10,8,30,0.9)'; ctx.strokeText(b.str, 0, 0);
+      ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+      // white inner outline
+      ctx.lineWidth = b.size * 0.09; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeText(b.str, 0, 0);
+      // gradient fill
+      const g = ctx.createLinearGradient(0, -b.size * 0.5, 0, b.size * 0.5);
+      g.addColorStop(0, b.colors[0]); g.addColorStop(1, b.colors[1]);
+      ctx.fillStyle = g; ctx.fillText(b.str, 0, 0);
+      // shine sweep
+      const shine = (age * 1.6) % 2;
+      if (shine < 1) {
+        const w = ctx.measureText(b.str).width;
+        const sg = ctx.createLinearGradient(-w / 2 + (shine - 0.2) * w, 0, -w / 2 + (shine + 0.2) * w, 0);
+        sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(0.5, 'rgba(255,255,255,0.55)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = sg; ctx.fillText(b.str, 0, 0);
+      }
+      if (b.sub) {
+        ctx.font = `800 ${b.size * 0.42}px Fredoka, Inter, system-ui, sans-serif`;
+        ctx.lineWidth = b.size * 0.1; ctx.strokeStyle = 'rgba(10,8,30,0.9)'; ctx.strokeText(b.sub, 0, b.size * 0.78);
+        ctx.fillStyle = b.subColor; ctx.fillText(b.sub, 0, b.size * 0.78);
+      }
+      ctx.restore();
+    }
+  }
+
   drawFlash(ctx, w, h) {
     if (this.flash <= 0) return;
     ctx.globalAlpha = this.flash;
@@ -162,7 +232,7 @@ export class FX {
     ctx.globalAlpha = 1;
   }
 
-  clear() { this.particles.length = 0; this.texts.length = 0; this.rings.length = 0; this.flash = 0; this.shake.t = 0; this.shake.x = this.shake.y = 0; }
+  clear() { this.particles.length = 0; this.texts.length = 0; this.rings.length = 0; if (this.banners) this.banners.length = 0; this.flash = 0; this.shake.t = 0; this.shake.x = this.shake.y = 0; }
 }
 
 export function roundRect(ctx, x, y, w, h, r) {

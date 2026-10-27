@@ -55,15 +55,5 @@ export function randomShape(rng = Math.random) {
   return SHAPES[SHAPES.length - 1];
 }
 
-// 8 vivid block colours (index 1..8). 0 = empty.
-export const COLORS = [
-  null,
-  { base: '#ff5c8a', light: '#ff9ab8', dark: '#c2284f', glow: '#ff5c8a' }, // pink
-  { base: '#ffb02e', light: '#ffd27a', dark: '#c77a00', glow: '#ffb02e' }, // amber
-  { base: '#3ddc84', light: '#8cf0b7', dark: '#1a9c57', glow: '#3ddc84' }, // green
-  { base: '#38bdf8', light: '#8ad9ff', dark: '#0f7fb5', glow: '#38bdf8' }, // sky
-  { base: '#a78bfa', light: '#cdbdff', dark: '#6b46d9', glow: '#a78bfa' }, // violet
-  { base: '#f97316', light: '#ffb074', dark: '#b84a08', glow: '#f97316' }, // orange
-  { base: '#22d3ee', light: '#86ecf7', dark: '#0e8fa3', glow: '#22d3ee' }, // cyan
-  { base: '#facc15', light: '#fde68a', dark: '#b58f06', glow: '#facc15' }, // yellow
-];
+// Block colours (index 1..8, 0 = empty) live in themes.js – every theme has its own palette.
+export const COLOR_COUNT = 8;

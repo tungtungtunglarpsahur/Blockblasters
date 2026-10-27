@@ -1,9 +1,9 @@
 // Service worker: offline play. Network-first for everything on this origin (so every Vercel deploy
 // shows up immediately), with the cache as fallback when offline.
-const VERSION = 'bb-v1';
+const VERSION = 'bb-v2';
 const ASSETS = [
   '/', '/index.html', '/css/style.css',
-  '/js/main.js', '/js/game.js', '/js/shapes.js', '/js/render.js', '/js/fx.js', '/js/audio.js', '/js/storage.js', '/js/ui.js',
+  '/js/main.js', '/js/game.js', '/js/shapes.js', '/js/themes.js', '/js/render.js', '/js/fx.js', '/js/audio.js', '/js/storage.js', '/js/ui.js',
   '/manifest.webmanifest', '/favicon.ico', '/assets/favicon.svg', '/assets/icon-192.png', '/assets/icon-512.png', '/assets/apple-touch-icon.png',
 ];
 

@@ -8,10 +8,13 @@ Zero dependencies, zero build step, installable as a PWA.</p>
 ## Features
 
 - **Endless mode** – play as long as your board allows; level up every few hundred points
+- **Daily Challenge** – one seeded board per day, everyone gets the same opening pieces, separate daily best
+- **5 themes that unlock by score** – Neon Night → Ocean Classic (2,500) → Colorful Wood (6,000) → Lava Ruby (12,000) → Galaxy (20,000). They switch mid-game with a big unlock banner; pin a favourite in Settings
 - **Highscore & stats** – best score, average, lines, max combo, last 10 games (stored locally)
 - **Revive** – first one free, extras cost coins; blasts 3 rows + 3 columns and deals fresh pieces
-- **Combos** – consecutive line clears multiply your score (a combo survives a single miss)
-- **Effects** – particles, screen shake, line flashes, combo rings, floating scores, confetti, perfect-clear fanfare
+- **Combos** – consecutive line clears multiply your score (a combo survives a single miss); the combo number is stamped on every block about to pop, the score changes colour with your combo tier and the board gets a rainbow frame during a streak
+- **Praise banners** – Cool! / Great! / Amazing! / Unbelievable! / Combo Master / 2 Colors Gone! / ALL CLEAR ×combo
+- **Effects** – particles, screen shake, line flashes, combo rings, floating scores, confetti, start-of-game ripple, twinkling empty slots
 - **Sound & haptics** – fully procedural WebAudio sounds (no audio files), vibration on mobile
 - **Smooth drag & drop** – pointer events, lift-above-finger on touch, snap preview that shows which lines will clear
 - **Auto-save** – close the tab and continue later from the main menu
@@ -49,7 +52,8 @@ index.html            app shell + all screens
 css/style.css         design system, HUD, overlays, animations
 js/main.js            bootstrap, game flow, screens, autosave
 js/game.js            pure rules: board, pieces, scoring, combos, revive, serialize
-js/shapes.js          piece catalogue + colour palette
+js/shapes.js          piece catalogue
+js/themes.js          themes, palettes, unlock thresholds
 js/render.js          canvas renderer, sprites, drag & drop, animations
 js/fx.js              particles, confetti, floating text, shake, rings
 js/audio.js           procedural sound engine
@@ -67,9 +71,9 @@ vercel.json           headers + clean URLs
 |---|---|
 | Place a piece | 1 per cell |
 | Clear *n* lines at once | (80·n + 40·n·(n−1)) × combo |
-| Perfect clear (empty board) | +1000 |
+| ALL CLEAR (empty board) | +500 × combo (min ×2) |
 
-Coins: +1 per line, +combo count when combo ≥ 2, +25 for a perfect clear, +10 per level-up. A revive costs 100 coins after the free one (max 5 per game).
+Coins: +1 per line, +combo count when combo ≥ 2, +3 when a clear is only 1–2 colours, +25 for an all clear, +10 per level-up. A revive costs 100 coins after the free one (max 5 per game).
 
 ## License
 

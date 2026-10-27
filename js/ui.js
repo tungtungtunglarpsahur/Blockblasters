@@ -55,8 +55,18 @@ export class UI {
     this.el.levelBar.style.transform = `scaleX(${k.toFixed(3)})`;
   }
 
+  // Score colour follows the combo tier (white → orange → green → cyan → magenta), gem pulses with it.
+  setScoreTier(combo) {
+    const tier = combo >= 10 ? 4 : combo >= 7 ? 3 : combo >= 4 ? 2 : combo >= 2 ? 1 : 0;
+    const colors = ['#ffffff', '#ffa43a', '#5ef08a', '#4fd6ff', '#ff5ce0'];
+    const hud = this.el.hud;
+    hud.style.setProperty('--score-color', colors[tier]);
+    hud.dataset.tier = String(tier);
+  }
+
   setCombo(n) {
     const c = this.el.combo;
+    this.setScoreTier(n);
     if (n >= 2) {
       c.textContent = `COMBO ×${n}`;
       c.style.setProperty('--hue', String((n * 47) % 360));
