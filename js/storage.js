@@ -14,7 +14,7 @@ const DEFAULT_PROFILE = {
   history: [],           // last 10 scores
   unlockedThemes: [],    // theme ids unlocked by reaching their score
   daily: null,           // { date, best, played } for today's Daily Challenge
-  settings: { sound: true, haptics: true, effects: 'high', ghost: true, theme: 'auto' },
+  settings: { sound: true, haptics: true, effects: 'auto', ghost: true, theme: 'auto' },
 };
 
 function read(key) {

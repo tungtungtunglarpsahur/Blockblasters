@@ -176,7 +176,6 @@ export class FX {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       if (t.stroke) { ctx.lineWidth = Math.max(2, t.size * 0.18); ctx.strokeStyle = 'rgba(8,10,24,0.85)'; ctx.lineJoin = 'round'; ctx.strokeText(t.str, 0, 0); }
       ctx.fillStyle = t.color;
-      ctx.shadowColor = t.color; ctx.shadowBlur = t.size * 0.5;
       ctx.fillText(t.str, 0, 0);
       ctx.restore();
     }
@@ -197,10 +196,9 @@ export class FX {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = `900 ${b.size}px Fredoka, Inter, system-ui, sans-serif`;
       ctx.lineJoin = 'round';
-      // outer dark outline + soft glow
-      ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = b.size * 0.35; ctx.shadowOffsetY = b.size * 0.08;
-      ctx.lineWidth = b.size * 0.22; ctx.strokeStyle = 'rgba(10,8,30,0.9)'; ctx.strokeText(b.str, 0, 0);
-      ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+      // drop shadow (offset copy) + outer dark outline – no shadowBlur, it is too slow on phones
+      ctx.lineWidth = b.size * 0.22; ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.strokeText(b.str, 0, b.size * 0.08);
+      ctx.strokeStyle = 'rgba(10,8,30,0.9)'; ctx.strokeText(b.str, 0, 0);
       // white inner outline
       ctx.lineWidth = b.size * 0.09; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeText(b.str, 0, 0);
       // gradient fill

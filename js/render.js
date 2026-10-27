@@ -8,7 +8,9 @@ const TAU = Math.PI * 2;
 export class Renderer {
   constructor(canvas, game, callbacks) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d', { alpha: true });
+    // desynchronized: lets the browser skip the compositor queue -> lower input latency while dragging
+    this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true }) || canvas.getContext('2d');
+    this.boardCache = null;          // pre-rendered static board (fill, grid/cells, frame)
     this.game = game;
     this.cb = callbacks;             // { onDrop(index,col,row) -> bool, onPick(), onInvalid(fromDrop) }
     this.fx = new FX();
@@ -48,6 +50,7 @@ export class Renderer {
     this.palette = PALETTES[theme.palette] || PALETTES.vivid;
     this.gapRatio = theme.style === 'grid' ? 0 : 0.085;
     this.sprites.clear();
+    this.boardCache = null;
     this._layout();
     if (animate) { this.themeFlash = 1; this.fx.flashScreen(0.5, '#ffffff'); this.fx.confetti(this.w, this.h, 160); this.fx.shakeScreen(7, 0.4); }
   }
@@ -55,11 +58,12 @@ export class Renderer {
   // ---------- layout ----------
   resize() {
     const rect = this.canvas.getBoundingClientRect();
-    this.dpr = Math.min(window.devicePixelRatio || 1, 3);
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);   // 2x is crisp enough; 3x triples the fill cost on phones
     this.w = rect.width; this.h = rect.height;
     this.canvas.width = Math.round(this.w * this.dpr);
     this.canvas.height = Math.round(this.h * this.dpr);
     this.sprites.clear();
+    this.boardCache = null;
     this._layout();
   }
 
@@ -216,6 +220,7 @@ export class Renderer {
     cv.style.touchAction = 'none';
     cv.addEventListener('pointerdown', e => this._down(e));
     cv.addEventListener('pointermove', e => this._move(e));
+    if ('onpointerrawupdate' in window) cv.addEventListener('pointerrawupdate', e => this._move(e));   // Chrome: higher-rate, lower-latency updates
     cv.addEventListener('pointerup', e => this._up(e));
     cv.addEventListener('pointercancel', () => this._cancel());
     cv.addEventListener('lostpointercapture', () => { if (this.drag) this._cancel(); });
@@ -280,18 +285,19 @@ export class Renderer {
     const top = touch ? d.py - L.cell * 1.15 - ph : d.py - ph / 2;
     return { x: d.px - pw / 2, y: top, pw, ph };
   }
+  // The piece sits exactly where the pointer says, every frame (no trailing). During the first
+  // ~80 ms it grows from tray size to board size around the pointer, that's all that animates.
   _dragPos(d, k) {
     const L = this.layout;
     const t = this._dragTarget(d);
-    const slot = L.slots[d.index];
     const piece = this.game.pieces[d.index];
     const sc = this.slotCellFor(piece);
-    const sg = sc * 0.12;
-    const sw = piece.shape.w * sc + (piece.shape.w - 1) * sg;
-    const sh = piece.shape.h * sc + (piece.shape.h - 1) * sg;
-    const sx = slot.cx - sw / 2, sy = slot.cy - sh / 2;
     const e = easeOut(k);
-    return { x: lerp(sx, t.x, e), y: lerp(sy, t.y, e), cellSize: lerp(sc, L.cell, e), gap: lerp(sg, L.gap, e) };
+    const cellSize = lerp(sc, L.cell, e), gap = lerp(sc * 0.12, L.gap, e);
+    const pw = piece.shape.w * cellSize + (piece.shape.w - 1) * gap;
+    const ph = piece.shape.h * cellSize + (piece.shape.h - 1) * gap;
+    // keep the (smaller) piece centred on the same point the full-size piece would occupy
+    return { x: t.x + (t.pw - pw) / 2, y: t.y + (t.ph - ph) / 2, cellSize, gap };
   }
   // Returns {c,r} for a valid snap, null when over the board but blocked, undefined when off the board.
   _snap(d) {
@@ -314,8 +320,8 @@ export class Renderer {
     this.intro = Math.min(1, this.intro + dt * 1.6);
     if (this.ripple) { this.ripple.t += dt; if (this.ripple.t > 1.4) this.ripple = null; }
     this.themeFlash = Math.max(0, this.themeFlash - dt * 0.8);
-    if (this.drag) this.drag.anim = Math.min(1, this.drag.anim + dt / 0.14);
-    if (this.returning) { this.returning.t += dt / 0.22; if (this.returning.t >= 1) this.returning = null; }
+    if (this.drag) this.drag.anim = Math.min(1, this.drag.anim + dt / 0.08);
+    if (this.returning) { this.returning.t += dt / 0.16; if (this.returning.t >= 1) this.returning = null; }
     for (let i = this.placedAnim.length - 1; i >= 0; i--) { const a = this.placedAnim[i]; a.t += dt; if (a.t > 0.3) this.placedAnim.splice(i, 1); }
     for (let i = this.vanish.length - 1; i >= 0; i--) {
       const v = this.vanish[i]; v.t += dt;
@@ -328,7 +334,7 @@ export class Renderer {
     }
     for (let i = this.lineFlash.length - 1; i >= 0; i--) { const f = this.lineFlash[i]; f.t += dt; if (f.t > 0.45) this.lineFlash.splice(i, 1); }
     for (let i = 0; i < PIECE_SLOTS; i++) {
-      this.trayAnim[i] = Math.min(1, this.trayAnim[i] + dt / (0.28 + i * 0.07));
+      this.trayAnim[i] = Math.min(1, this.trayAnim[i] + dt / (0.2 + i * 0.05));
       // decorative twinkle in empty slots
       const piece = this.game.pieces[i];
       if (piece && piece.used && this.quality !== 'low') {
@@ -371,8 +377,64 @@ export class Renderer {
     this.fx.drawFlash(ctx, this.w, this.h);
   }
 
+  // Pre-renders the static part of the board (fill, cells / grid lines, frame) once per
+  // theme + layout, so each frame is a single drawImage instead of ~70 path fills.
+  _buildBoardCache() {
+    const L = this.layout, T = this.theme, dp = this.dpr;
+    const pad = Math.ceil(L.cell * 0.5);
+    const cv = document.createElement('canvas');
+    cv.width = Math.ceil((L.board + pad * 2) * dp); cv.height = cv.width;
+    const g = cv.getContext('2d');
+    g.scale(dp, dp);
+    g.translate(pad - L.bx, pad - L.by);
+    const radius = T.style === 'grid' ? L.cell * 0.18 : L.cell * 0.45;
+    g.fillStyle = T.board.fill;
+    g.beginPath(); roundRect(g, L.bx, L.by, L.board, L.board, radius); g.fill();
+    if (T.style === 'grid') {
+      g.fillStyle = T.board.cell;
+      g.fillRect(L.ox, L.oy, L.cell * SIZE, L.cell * SIZE);
+      g.strokeStyle = T.board.line; g.lineWidth = 1;
+      g.beginPath();
+      for (let i = 0; i <= SIZE; i++) {
+        const x = Math.round(L.ox + i * L.cell) + 0.5, y = Math.round(L.oy + i * L.cell) + 0.5;
+        g.moveTo(x, L.oy); g.lineTo(x, L.oy + L.cell * SIZE);
+        g.moveTo(L.ox, y); g.lineTo(L.ox + L.cell * SIZE, y);
+      }
+      g.stroke();
+      g.strokeStyle = T.board.border; g.lineWidth = Math.max(1.5, L.frame * 0.35);
+      g.beginPath(); roundRect(g, L.bx + g.lineWidth / 2, L.by + g.lineWidth / 2, L.board - g.lineWidth, L.board - g.lineWidth, radius); g.stroke();
+    } else {
+      const grad = g.createLinearGradient(L.bx, L.by, L.bx + L.board, L.by + L.board);
+      grad.addColorStop(0, T.board.border); grad.addColorStop(0.5, 'rgba(255,255,255,0.06)'); grad.addColorStop(1, T.board.border);
+      g.strokeStyle = grad; g.lineWidth = 1.2;
+      g.beginPath(); roundRect(g, L.bx + 0.5, L.by + 0.5, L.board - 1, L.board - 1, radius); g.stroke();
+      g.fillStyle = T.board.cell;
+      for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+        const p = this.cellPos(c, r);
+        g.beginPath(); roundRect(g, p.x, p.y, L.cell, L.cell, L.cell * 0.2); g.fill();
+      }
+    }
+    this.boardCache = { cv, pad };
+  }
+
+  // Cheap glow: a few widening, fading strokes instead of shadowBlur.
+  _glowRect(x, y, w, h, r, color, size, alpha) {
+    const ctx = this.ctx;
+    const steps = 5;
+    ctx.save();
+    ctx.strokeStyle = color;
+    for (let i = 1; i <= steps; i++) {
+      const k = i / steps;
+      ctx.globalAlpha = alpha * (1 - k) * (1 - k) * 0.9;
+      ctx.lineWidth = size * k;
+      ctx.beginPath(); roundRect(ctx, x - ctx.lineWidth / 2, y - ctx.lineWidth / 2, w + ctx.lineWidth, h + ctx.lineWidth, r + ctx.lineWidth / 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   _drawBoardPanel() {
     const ctx = this.ctx, L = this.layout, T = this.theme;
+    if (!this.boardCache) this._buildBoardCache();
     const k = easeOutBack(this.intro);
     const combo = this.game.combo;
     const pulse = this.boardPulse;
@@ -383,43 +445,14 @@ export class Renderer {
     ctx.scale(0.85 + 0.15 * k, 0.85 + 0.15 * k);
     ctx.translate(-(L.bx + L.board / 2), -(L.by + L.board / 2));
     ctx.globalAlpha = clamp(this.intro * 1.5, 0, 1);
-
     if (this.quality !== 'low') {
       const hue = (combo * 47) % 360;
-      ctx.shadowColor = combo >= 2 ? `hsla(${hue} 100% 65% / ${0.35 + pulse * 0.5})`
-        : pressure > 0 ? `rgba(255,80,110,${0.25 * pressure * (0.6 + 0.4 * Math.sin(this.time * 5))})` : T.board.glow;
-      ctx.shadowBlur = 28 + pulse * 40 + this.themeFlash * 50;
+      const color = combo >= 2 ? `hsl(${hue} 100% 65%)` : pressure > 0 ? 'rgb(255,80,110)' : T.board.glow;
+      const alpha = combo >= 2 ? 0.35 + pulse * 0.5 : pressure > 0 ? 0.3 * pressure * (0.6 + 0.4 * Math.sin(this.time * 5)) : 0.45;
+      this._glowRect(L.bx, L.by, L.board, L.board, radius, color, L.cell * (0.9 + pulse * 0.8 + this.themeFlash), alpha * ctx.globalAlpha);
     }
-    ctx.fillStyle = T.board.fill;
-    ctx.beginPath(); roundRect(ctx, L.bx, L.by, L.board, L.board, radius); ctx.fill();
-    ctx.shadowBlur = 0;
-
-    if (T.style === 'grid') {
-      // inner cell area + grid lines (Block-Blast-like)
-      ctx.fillStyle = T.board.cell;
-      ctx.fillRect(L.ox, L.oy, L.cell * SIZE, L.cell * SIZE);
-      ctx.strokeStyle = T.board.line; ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (let i = 0; i <= SIZE; i++) {
-        const x = Math.round(L.ox + i * L.cell) + 0.5, y = Math.round(L.oy + i * L.cell) + 0.5;
-        ctx.moveTo(x, L.oy); ctx.lineTo(x, L.oy + L.cell * SIZE);
-        ctx.moveTo(L.ox, y); ctx.lineTo(L.ox + L.cell * SIZE, y);
-      }
-      ctx.stroke();
-      // frame highlight
-      ctx.strokeStyle = T.board.border; ctx.lineWidth = Math.max(1.5, L.frame * 0.35);
-      ctx.beginPath(); roundRect(ctx, L.bx + ctx.lineWidth / 2, L.by + ctx.lineWidth / 2, L.board - ctx.lineWidth, L.board - ctx.lineWidth, radius); ctx.stroke();
-    } else {
-      const grad = ctx.createLinearGradient(L.bx, L.by, L.bx + L.board, L.by + L.board);
-      grad.addColorStop(0, T.board.border); grad.addColorStop(0.5, 'rgba(255,255,255,0.06)'); grad.addColorStop(1, T.board.border);
-      ctx.strokeStyle = grad; ctx.lineWidth = 1.2;
-      ctx.beginPath(); roundRect(ctx, L.bx + 0.5, L.by + 0.5, L.board - 1, L.board - 1, radius); ctx.stroke();
-      ctx.fillStyle = T.board.cell;
-      for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-        const p = this.cellPos(c, r);
-        ctx.beginPath(); roundRect(ctx, p.x, p.y, L.cell, L.cell, L.cell * 0.2); ctx.fill();
-      }
-    }
+    const bc = this.boardCache;
+    ctx.drawImage(bc.cv, L.bx - bc.pad, L.by - bc.pad, bc.cv.width / this.dpr, bc.cv.height / this.dpr);
     ctx.restore();
   }
 
@@ -440,9 +473,12 @@ export class Renderer {
       grad.addColorStop(0, `hsl(${(this.time * 80) % 360} 100% 65%)`); grad.addColorStop(1, `hsl(${(this.time * 80 + 180) % 360} 100% 65%)`);
     }
     ctx.save();
-    ctx.globalAlpha = 0.55 + 0.35 * Math.sin(this.time * 6) * strength;
-    ctx.strokeStyle = grad; ctx.lineWidth = 3 + strength * 3;
-    ctx.shadowColor = `hsl(${(this.time * 60) % 360} 100% 65%)`; ctx.shadowBlur = 18 + strength * 16;
+    const a = 0.55 + 0.35 * Math.sin(this.time * 6) * strength;
+    ctx.strokeStyle = grad;
+    // halo: wide faint stroke, then the crisp line
+    ctx.globalAlpha = a * 0.28; ctx.lineWidth = 12 + strength * 8;
+    ctx.beginPath(); roundRect(ctx, L.bx - 2, L.by - 2, L.board + 4, L.board + 4, radius + 2); ctx.stroke();
+    ctx.globalAlpha = a; ctx.lineWidth = 3 + strength * 3;
     ctx.beginPath(); roundRect(ctx, L.bx - 2, L.by - 2, L.board + 4, L.board + 4, radius + 2); ctx.stroke();
     ctx.restore();
   }
@@ -541,7 +577,6 @@ export class Renderer {
       ctx.save();
       ctx.globalAlpha = a;
       ctx.fillStyle = '#ffffff';
-      if (this.quality !== 'low') { ctx.shadowColor = '#ffe9a0'; ctx.shadowBlur = 25 * (1 - k); }
       const grow = 1 + k * 0.35;
       for (const r of f.rows) { const p = this.cellPos(0, r); const h = (L.cell + L.gap) * grow; ctx.beginPath(); roundRect(ctx, p.x - L.gap * 0.5, p.y + L.cell / 2 - h / 2, span, h, h * 0.3); ctx.fill(); }
       for (const c of f.cols) { const p = this.cellPos(c, 0); const w = (L.cell + L.gap) * grow; ctx.beginPath(); roundRect(ctx, p.x + L.cell / 2 - w / 2, p.y - L.gap * 0.5, w, span, w * 0.3); ctx.fill(); }
@@ -622,10 +657,16 @@ export class Renderer {
     const d = this.drag, ctx = this.ctx;
     const piece = this.game.pieces[d.index];
     const pos = this._dragPos(d, d.anim);
-    ctx.save();
-    if (this.quality !== 'low') { ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 12; }
+    if (this.quality !== 'low') {
+      // soft drop shadow without shadowBlur (blur is the single most expensive canvas op on phones)
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      const off = pos.cellSize * 0.22, r = this.theme.style === 'grid' ? pos.cellSize * 0.08 : pos.cellSize * 0.22;
+      for (const [dc, dr] of piece.shape.cells) {
+        const x = pos.x + dc * (pos.cellSize + pos.gap), y = pos.y + dr * (pos.cellSize + pos.gap) + off;
+        ctx.beginPath(); roundRect(ctx, x - 1, y - 1, pos.cellSize + 2, pos.cellSize + 2, r); ctx.fill();
+      }
+    }
     this._drawPiece(piece, pos.x, pos.y, pos.cellSize, pos.gap, { alpha: 0.98 });
-    ctx.restore();
   }
 }
 

@@ -18,7 +18,7 @@ Zero dependencies, zero build step, installable as a PWA.</p>
 - **Sound & haptics** – fully procedural WebAudio sounds (no audio files), vibration on mobile
 - **Smooth drag & drop** – pointer events, lift-above-finger on touch, snap preview that shows which lines will clear
 - **Auto-save** – close the tab and continue later from the main menu
-- **Loading screen, pause menu, settings** (sound, vibration, placement preview, effect quality)
+- **Loading screen, pause menu, settings** (sound, vibration, placement preview, effect quality – Auto adapts to the phone's real frame rate)
 - **PWA** – manifest, icons, offline service worker, installable on iOS / Android / desktop
 
 ## Run locally

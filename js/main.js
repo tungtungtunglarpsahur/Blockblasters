@@ -41,10 +41,32 @@ function haptic(pattern) {
 function saveProfile() { storage.saveProfile(profile); }
 function saveGame() { if (game) storage.saveGame(game.serialize()); }
 
+// Adaptive effect quality: 'auto' measures real frame times and drops to 'low' on phones that
+// can't hold ~50 fps, then climbs back when things are smooth again.
+const perf = { avg: 16, slowFor: 0, fastFor: 0, level: 'high' };
+function effectiveQuality() {
+  const pref = profile.settings.effects || 'auto';
+  return pref === 'auto' ? perf.level : pref;
+}
+function samplePerf(dt) {
+  if (dt <= 0 || dt >= 0.05) return;             // ignore pauses / tab switches
+  perf.avg += (dt - perf.avg) * 0.08;
+  if (perf.avg > 0.022) { perf.slowFor += dt; perf.fastFor = 0; } else if (perf.avg < 0.0145) { perf.fastFor += dt; perf.slowFor = 0; } else { perf.slowFor = 0; perf.fastFor = 0; }
+  let next = perf.level;
+  if (perf.level === 'high' && perf.slowFor > 1.5) next = 'low';
+  else if (perf.level === 'low' && perf.fastFor > 6) next = 'high';
+  if (next !== perf.level) { perf.level = next; perf.slowFor = perf.fastFor = 0; applyQuality(); }
+}
+function applyQuality() {
+  const q = effectiveQuality();
+  if (renderer) renderer.quality = q;
+  document.body.classList.toggle('low-fx', q === 'low');
+}
+
 function applySettings() {
   audio.enabled = profile.settings.sound;
-  if (renderer) { renderer.quality = profile.settings.effects; renderer.ghostEnabled = profile.settings.ghost; }
-  document.body.classList.toggle('low-fx', profile.settings.effects === 'low');
+  if (renderer) renderer.ghostEnabled = profile.settings.ghost;
+  applyQuality();
   $$('[data-setting]').forEach(el => {
     const key = el.dataset.setting;
     const val = profile.settings[key];
@@ -366,8 +388,10 @@ function resume() {
 
 // ---------------------------------------------------------------- loop
 function frame(t) {
-  const dt = Math.min(0.05, (t - lastT) / 1000 || 0);
+  const raw = (t - lastT) / 1000 || 0;
+  const dt = Math.min(0.05, raw);
   lastT = t;
+  if (game && !ui.current) samplePerf(raw);     // only measure while actually playing
   if (renderer) {
     renderer.update(dt);
     renderer.draw();
