@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <title>Block Blasters — Endless Block Puzzle</title>
+  <meta name="description" content="Block Blasters: a fast, smooth, endless 8×8 block puzzle. Drag blocks, clear lines, chain combos, chase your highscore — with revives, effects and sound.">
+  <meta name="theme-color" content="#0b1026">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Block Blasters">
+  <meta property="og:title" content="Block Blasters">
+  <meta property="og:description" content="Endless block puzzle. Clear lines, chain combos, beat your highscore.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="/assets/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800;900&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-screen="loading">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="logo-mark" viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="lg-pink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9ab8"/><stop offset="1" stop-color="#ff5c8a"/></linearGradient>
+          <linearGradient id="lg-amber" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset="1" stop-color="#ffb02e"/></linearGradient>
+          <linearGradient id="lg-green" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8cf0b7"/><stop offset="1" stop-color="#3ddc84"/></linearGradient>
+          <linearGradient id="lg-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8ad9ff"/><stop offset="1" stop-color="#38bdf8"/></linearGradient>
+          <linearGradient id="lg-gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        </defs>
+        <g class="lm-block lm-1"><rect x="14" y="14" width="42" height="42" rx="9" fill="#c2284f"/><rect x="14" y="14" width="42" height="37" rx="9" fill="url(#lg-pink)"/><rect x="19" y="17" width="32" height="16" rx="6" fill="url(#lg-gloss)"/></g>
+        <g class="lm-block lm-2"><rect x="64" y="14" width="42" height="42" rx="9" fill="#c77a00"/><rect x="64" y="14" width="42" height="37" rx="9" fill="url(#lg-amber)"/><rect x="69" y="17" width="32" height="16" rx="6" fill="url(#lg-gloss)"/></g>
+        <g class="lm-block lm-3"><rect x="14" y="64" width="42" height="42" rx="9" fill="#1a9c57"/><rect x="14" y="64" width="42" height="37" rx="9" fill="url(#lg-green)"/><rect x="19" y="67" width="32" height="16" rx="6" fill="url(#lg-gloss)"/></g>
+        <g class="lm-block lm-4"><rect x="64" y="64" width="42" height="42" rx="9" fill="#0f7fb5"/><rect x="64" y="64" width="42" height="37" rx="9" fill="url(#lg-sky)"/><rect x="69" y="67" width="32" height="16" rx="6" fill="url(#lg-gloss)"/></g>
+        <g class="lm-sparks" fill="#fff"><circle cx="110" cy="10" r="3.2"/><circle cx="8" cy="112" r="2.4"/><path d="M104 118l2.3-6 2.3 6-2.3 6z" opacity=".9"/></g>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div id="bg" aria-hidden="true">
+    <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+    <div class="floaters">
+      <i style="--x:8%;--d:26s;--s:38px;--c:#ff5c8a"></i><i style="--x:22%;--d:31s;--s:26px;--c:#38bdf8;--delay:-9s"></i>
+      <i style="--x:41%;--d:24s;--s:30px;--c:#3ddc84;--delay:-4s"></i><i style="--x:58%;--d:35s;--s:22px;--c:#ffb02e;--delay:-15s"></i>
+      <i style="--x:74%;--d:28s;--s:34px;--c:#a78bfa;--delay:-20s"></i><i style="--x:89%;--d:33s;--s:24px;--c:#22d3ee;--delay:-7s"></i>
+    </div>
+  </div>
+
+  <main id="app">
+    <header id="hud">
+      <button id="btn-pause" class="icon-btn" aria-label="Pause">
+        <svg viewBox="0 0 24 24" width="22" height="22"><rect x="6" y="5" width="4" height="14" rx="1.5" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1.5" fill="currentColor"/></svg>
+      </button>
+      <div class="hud-center">
+        <div class="hud-score"><span id="score">0</span></div>
+        <div class="hud-level-row"><span id="level">LVL 1</span><div class="level-track"><div id="level-bar"></div></div></div>
+      </div>
+      <div class="hud-right">
+        <div class="pill best" title="Best score"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z" fill="#ffd166"/></svg><span id="best">0</span></div>
+        <div class="pill coins" title="Coins"><span class="coin"></span><span id="coins">0</span></div>
+      </div>
+      <div id="combo" class="combo">COMBO ×2</div>
+    </header>
+    <canvas id="game" aria-label="Game board"></canvas>
+  </main>
+
+  <!-- Loading -->
+  <section id="screen-loading" class="overlay solid" hidden>
+    <div class="center">
+      <svg class="logo big anim" viewBox="0 0 120 120" width="128" height="128"><use href="#logo-mark"/></svg>
+      <h1 class="wordmark">BLOCK<span>BLASTERS</span></h1>
+      <div class="load-track"><div id="load-bar"></div></div>
+      <p id="load-text" class="muted">Loading…</p>
+      <p id="load-tip" class="tip"></p>
+    </div>
+  </section>
+
+  <!-- Main menu -->
+  <section id="screen-menu" class="overlay" hidden>
+    <div class="panel menu">
+      <svg class="logo anim" viewBox="0 0 120 120" width="96" height="96"><use href="#logo-mark"/></svg>
+      <h1 class="wordmark">BLOCK<span>BLASTERS</span></h1>
+      <p class="tagline">Endless · Combos · Revives</p>
+      <div class="menu-stats">
+        <div><small>BEST</small><strong id="menu-best">0</strong></div>
+        <div><small>COINS</small><strong><span class="coin"></span><span id="menu-coins">0</span></strong></div>
+      </div>
+      <button id="btn-continue" class="btn ghost" hidden><span>Continue</span><em id="continue-score"></em></button>
+      <button id="btn-play" class="btn primary big">PLAY</button>
+      <div class="row">
+        <button id="btn-stats" class="btn ghost">Stats</button>
+        <button id="btn-settings" class="btn ghost">Settings</button>
+      </div>
+      <p class="muted small" id="version">v1.0.0</p>
+    </div>
+  </section>
+
+  <!-- Pause -->
+  <section id="screen-pause" class="overlay" hidden>
+    <div class="panel">
+      <h2>PAUSED</h2>
+      <button id="btn-resume" class="btn primary big">Resume</button>
+      <div class="toggles">
+        <label class="toggle"><span>Sound</span><input type="checkbox" data-setting="sound"><i></i></label>
+        <label class="toggle"><span>Vibration</span><input type="checkbox" data-setting="haptics"><i></i></label>
+      </div>
+      <div class="row">
+        <button id="btn-restart" class="btn ghost">Restart</button>
+        <button id="btn-pause-settings" class="btn ghost">Settings</button>
+      </div>
+      <button id="btn-home" class="btn ghost">Main menu</button>
+    </div>
+  </section>
+
+  <!-- Game over -->
+  <section id="screen-over" class="overlay" hidden>
+    <div class="panel over">
+      <h2 id="over-title">GAME OVER</h2>
+      <div class="over-score"><small>SCORE</small><strong id="over-score">0</strong></div>
+      <div class="over-grid">
+        <div><small>BEST</small><span id="over-best">0</span></div>
+        <div><small>LINES</small><span id="over-lines">0</span></div>
+        <div><small>MAX COMBO</small><span id="over-combo">×0</span></div>
+        <div><small>LEVEL</small><span id="over-level">1</span></div>
+      </div>
+      <div id="revive-card" class="revive-card">
+        <div class="revive-head">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 21s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.4-7 10-7 10z" fill="#ff5c8a"/><path d="M8 11h2.2l1.1-2.2 1.6 4.4 1.1-2.2H16" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div><strong>REVIVE</strong><small>Blasts 3 rows &amp; 3 columns, fresh pieces</small></div>
+          <span id="revive-left" class="chip">5 left</span>
+        </div>
+        <button id="btn-revive" class="btn revive"><span>Revive</span><em id="revive-price">FREE</em></button>
+        <p id="revive-hint" class="muted small"></p>
+      </div>
+      <button id="btn-again" class="btn primary big">Play again</button>
+      <button id="btn-over-home" class="btn ghost">Main menu</button>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section id="screen-settings" class="overlay" hidden>
+    <div class="panel">
+      <h2>SETTINGS</h2>
+      <div class="toggles">
+        <label class="toggle"><span>Sound effects</span><input type="checkbox" data-setting="sound"><i></i></label>
+        <label class="toggle"><span>Vibration</span><input type="checkbox" data-setting="haptics"><i></i></label>
+        <label class="toggle"><span>Placement preview</span><input type="checkbox" data-setting="ghost"><i></i></label>
+        <div class="seg-row"><span>Effects</span>
+          <div class="seg">
+            <button type="button" data-setting="effects" data-value="high">High</button>
+            <button type="button" data-setting="effects" data-value="low">Low</button>
+          </div>
+        </div>
+      </div>
+      <button class="btn ghost" data-back="auto">Back</button>
+      <button id="btn-reset" class="btn danger small">Reset all data</button>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <section id="screen-stats" class="overlay" hidden>
+    <div class="panel">
+      <h2>STATS</h2>
+      <div class="stat-grid">
+        <div><small>BEST</small><span id="st-best">0</span></div>
+        <div><small>GAMES</small><span id="st-games">0</span></div>
+        <div><small>AVERAGE</small><span id="st-avg">0</span></div>
+        <div><small>LINES</small><span id="st-lines">0</span></div>
+        <div><small>MAX COMBO</small><span id="st-combo">×0</span></div>
+        <div><small>REVIVES</small><span id="st-revives">0</span></div>
+        <div><small>COINS</small><span id="st-coins">0</span></div>
+      </div>
+      <h3>Recent games</h3>
+      <ul id="st-history" class="history"></ul>
+      <button class="btn ghost" data-back="menu">Back</button>
+    </div>
+  </section>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>
